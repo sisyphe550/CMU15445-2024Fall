@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <bitset>
 #include <memory>
 #include <mutex>  // NOLINT
@@ -83,6 +84,10 @@ class HyperLogLog {
   size_t cardinality_;
 
   /** @todo (student) can add their data structures that support HyperLogLog */
+  int16_t n_bits_;
+  size_t num_buckets_;
+  std::vector<uint8_t> registers_;
+  bool is_dirty_;
 };
 
 }  // namespace bustub
