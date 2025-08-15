@@ -87,7 +87,6 @@ class HyperLogLog {
   int16_t n_bits_;
   size_t num_buckets_;
   std::vector<uint8_t> registers_;
-  bool is_dirty_;
 };
 
 }  // namespace bustub

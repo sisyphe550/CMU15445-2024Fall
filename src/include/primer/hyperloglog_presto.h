@@ -43,7 +43,13 @@ class HyperLogLogPresto {
   auto GetDenseBucket() const -> std::vector<std::bitset<DENSE_BUCKET_SIZE>> { return dense_bucket_; }
 
   /** @brief Returns overflow bucket of a specific given index. */
-  auto GetOverflowBucketofIndex(uint16_t idx) { return overflow_bucket_[idx]; }
+  auto GetOverflowBucketofIndex(uint16_t idx) {
+    auto it = overflow_bucket_.find(idx);
+    if (it == overflow_bucket_.end()) {
+      return std::bitset<OVERFLOW_BUCKET_SIZE>(0);
+    }
+    return it->second;
+  }
 
   /** @brief Retusn the cardinality of the set. */
   auto GetCardinality() const -> uint64_t { return cardinality_; }
@@ -83,6 +89,7 @@ class HyperLogLogPresto {
   uint64_t cardinality_;
 
   // TODO(student) - can add more data structures as required
+  int16_t n_leading_bits_;
 };
 
 }  // namespace bustub
