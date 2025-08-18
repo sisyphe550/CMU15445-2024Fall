@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     clang-12 \
     clang-format-12 \
     clang-tidy-12 \
+    clangd-12 \
     cmake \
     doxygen \
     git \
