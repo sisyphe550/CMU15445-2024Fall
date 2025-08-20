@@ -16,6 +16,7 @@
 #include <memory>
 #include <shared_mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "buffer/lru_k_replacer.h"
@@ -124,6 +125,9 @@ class BufferPoolManager {
   auto FlushPage(page_id_t page_id) -> bool;
   void FlushAllPages();
   auto GetPinCount(page_id_t page_id) -> std::optional<size_t>;
+  auto AcquireAvailableFrame() -> std::optional<std::pair<frame_id_t, std::shared_ptr<FrameHeader>>>;
+  auto EvictFrameIfDirty(frame_id_t frame_id, std::shared_ptr<FrameHeader> frame) -> bool;
+  auto LoadPageIntoFrame(std::shared_ptr<FrameHeader> frame, page_id_t page_id) -> bool; 
 
  private:
   /** @brief The number of frames in the buffer pool. */
@@ -170,5 +174,6 @@ class BufferPoolManager {
    * stored inside of it. Additionally, you may also want to implement a helper function that returns either a shared
    * pointer to a `FrameHeader` that already has a page's data stored inside of it, or an index to said `FrameHeader`.
    */
+  std::unordered_set<page_id_t> pages_on_disk_;
 };
 }  // namespace bustub
