@@ -34,8 +34,8 @@ ReadPageGuard::ReadPageGuard(page_id_t page_id, std::shared_ptr<FrameHeader> fra
     throw std::invalid_argument("This frame is null! ");
   }
   frame_->rwlatch_.lock_shared();
-  frame_->pin_count_.fetch_add(1, std::memory_order_acq_rel);
-  
+  frame_->pin_count_.fetch_add(1);
+
   is_valid_ = true;
 }
 
@@ -62,7 +62,7 @@ ReadPageGuard::ReadPageGuard(ReadPageGuard &&that) noexcept {
   is_valid_ = that.is_valid_;
 
   that.page_id_ = INVALID_PAGE_ID;
-  that.is_valid_ = false; 
+  that.is_valid_ = false;
 }
 
 /**
@@ -82,7 +82,7 @@ ReadPageGuard::ReadPageGuard(ReadPageGuard &&that) noexcept {
  * @param that The other page guard.
  * @return ReadPageGuard& The newly valid `ReadPageGuard`.
  */
-auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & { 
+auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & {
   if (this != &that) {
     Drop();
 
@@ -95,7 +95,7 @@ auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & 
     that.page_id_ = INVALID_PAGE_ID;
     that.is_valid_ = false;
   }
-  return *this; 
+  return *this;
 }
 
 /**
@@ -133,18 +133,18 @@ auto ReadPageGuard::IsDirty() const -> bool {
  *
  * TODO(P1): Add implementation.
  */
-void ReadPageGuard::Drop() { 
-  // UNIMPLEMENTED("TODO(P1): Add implementation."); 
-  if (!is_valid_) return;
-  size_t prev_pin_count = frame_->pin_count_.fetch_sub(1, std::memory_order_acq_rel);
-  
-  // 如果从1变为0，需要在BPM锁保护下设置evictable
-  if (prev_pin_count == 1) {
+void ReadPageGuard::Drop() {
+  // UNIMPLEMENTED("TODO(P1): Add implementation.");
+  if (!is_valid_) {
+    return;
+  }
+
+  frame_->rwlatch_.unlock_shared();
+
+  if (frame_->pin_count_.fetch_sub(1) == 1) {
     std::scoped_lock latch(*bpm_latch_);
     replacer_->SetEvictable(frame_->frame_id_, true);
   }
-  
-  frame_->rwlatch_.unlock_shared();
   is_valid_ = false;
 }
 
@@ -172,8 +172,8 @@ WritePageGuard::WritePageGuard(page_id_t page_id, std::shared_ptr<FrameHeader> f
     : page_id_(page_id), frame_(std::move(frame)), replacer_(std::move(replacer)), bpm_latch_(std::move(bpm_latch)) {
   // UNIMPLEMENTED("TODO(P1): Add implementation.");
   frame_->rwlatch_.lock();
-  frame_->pin_count_.fetch_add(1, std::memory_order_acq_rel);
-  
+  frame_->pin_count_.fetch_add(1);
+
   frame_->is_dirty_ = true;
   is_valid_ = true;
 }
@@ -221,7 +221,7 @@ WritePageGuard::WritePageGuard(WritePageGuard &&that) noexcept {
  * @param that The other page guard.
  * @return WritePageGuard& The newly valid `WritePageGuard`.
  */
-auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard & { 
+auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard & {
   if (this != &that) {
     Drop();
 
@@ -234,7 +234,7 @@ auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard
     that.page_id_ = INVALID_PAGE_ID;
     that.is_valid_ = false;
   }
-  return *this; 
+  return *this;
 }
 
 /**
@@ -280,17 +280,19 @@ auto WritePageGuard::IsDirty() const -> bool {
  *
  * TODO(P1): Add implementation.
  */
-void WritePageGuard::Drop() { 
-  // UNIMPLEMENTED("TODO(P1): Add implementation."); 
-  if (!is_valid_) return;
-  size_t prev_pin_count = frame_->pin_count_.fetch_sub(1, std::memory_order_acq_rel);
-  
-  if (prev_pin_count == 1) {
+void WritePageGuard::Drop() {
+  // UNIMPLEMENTED("TODO(P1): Add implementation.");
+  if (!is_valid_) {
+    return;
+  }
+
+  frame_->rwlatch_.unlock();
+
+  if (frame_->pin_count_.fetch_sub(1) == 1) {
     std::scoped_lock latch(*bpm_latch_);
     replacer_->SetEvictable(frame_->frame_id_, true);
   }
-  
-  frame_->rwlatch_.unlock();
+
   is_valid_ = false;
 }
 

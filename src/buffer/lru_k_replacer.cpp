@@ -15,19 +15,20 @@
 
 namespace bustub {
 
-LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) 
-    : replacer_size_(num_frames), k_(k) {}
+LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
 
-auto LRUKReplacer::Evict() -> std::optional<frame_id_t> { 
-// return std::nullopt; 
+auto LRUKReplacer::Evict() -> std::optional<frame_id_t> {
+  // return std::nullopt;
   std::lock_guard<std::mutex> lock(latch_);
 
   frame_id_t victim_frame = INVALID_FRAME_ID;
   size_t earliest_timestamp = std::numeric_limits<std::size_t>::max();
-  
-  for (auto& [frame_id, node] : node_store_) {
-    if (!node.is_evictable_) continue;
-    
+
+  for (auto &[frame_id, node] : node_store_) {
+    if (!node.is_evictable_) {
+      continue;
+    }
+
     if (node.history_.size() < k_) {
       if (node.history_.empty()) {
         if (0 < earliest_timestamp) {
@@ -35,7 +36,7 @@ auto LRUKReplacer::Evict() -> std::optional<frame_id_t> {
           curr_size_--;
           return frame_id;
         }
-      } 
+      }
 
       if (node.history_.front() < earliest_timestamp) {
         earliest_timestamp = node.history_.front();
@@ -43,16 +44,18 @@ auto LRUKReplacer::Evict() -> std::optional<frame_id_t> {
       }
     }
   }
-  
+
   if (victim_frame != INVALID_FRAME_ID) {
     node_store_.erase(victim_frame);
     curr_size_--;
     return victim_frame;
   }
-  
+
   size_t max_distance = 0;
-  for (auto& [frame_id, node] : node_store_) {
-    if (!node.is_evictable_) continue;
+  for (auto &[frame_id, node] : node_store_) {
+    if (!node.is_evictable_) {
+      continue;
+    }
 
     if (node.history_.size() >= k_) {
       size_t distance = current_timestamp_ - node.history_.front();
@@ -96,7 +99,6 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
 
     node_store_.emplace(frame_id, std::move(new_node));
   }
-
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
@@ -116,7 +118,7 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   if (was_evictable == set_evictable) {
     return;
   }
-  
+
   it->second.is_evictable_ = set_evictable;
 
   if (was_evictable && !set_evictable) {
@@ -142,8 +144,8 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
   curr_size_--;
 }
 
-auto LRUKReplacer::Size() -> size_t { 
-  // return 0; 
+auto LRUKReplacer::Size() -> size_t {
+  // return 0;
   std::lock_guard<std::mutex> lock(latch_);
   return curr_size_;
 }

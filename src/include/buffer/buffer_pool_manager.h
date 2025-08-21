@@ -126,8 +126,8 @@ class BufferPoolManager {
   void FlushAllPages();
   auto GetPinCount(page_id_t page_id) -> std::optional<size_t>;
   auto AcquireAvailableFrame() -> std::optional<std::pair<frame_id_t, std::shared_ptr<FrameHeader>>>;
-  auto EvictFrameIfDirty(frame_id_t frame_id, std::shared_ptr<FrameHeader> frame) -> bool;
-  auto LoadPageIntoFrame(std::shared_ptr<FrameHeader> frame, page_id_t page_id) -> bool; 
+  auto EvictFrameIfDirty(frame_id_t frame_id, const std::shared_ptr<FrameHeader> &frame) -> bool;
+  auto LoadPageIntoFrame(const std::shared_ptr<FrameHeader> &frame, page_id_t page_id) -> bool;
 
  private:
   /** @brief The number of frames in the buffer pool. */
