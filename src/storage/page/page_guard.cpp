@@ -30,13 +30,9 @@ ReadPageGuard::ReadPageGuard(page_id_t page_id, std::shared_ptr<FrameHeader> fra
                              std::shared_ptr<LRUKReplacer> replacer, std::shared_ptr<std::mutex> bpm_latch)
     : page_id_(page_id), frame_(std::move(frame)), replacer_(std::move(replacer)), bpm_latch_(std::move(bpm_latch)) {
   // UNIMPLEMENTED("TODO(P1): Add implementation.");
-  if (!frame_) {
-    throw std::invalid_argument("This frame is null! ");
-  }
-  frame_->rwlatch_.lock_shared();
-  frame_->pin_count_.fetch_add(1);
-
   is_valid_ = true;
+  bpm_latch_->unlock();
+  frame_->rwlatch_.lock_shared();
 }
 
 /**
@@ -140,11 +136,12 @@ void ReadPageGuard::Drop() {
   }
 
   frame_->rwlatch_.unlock_shared();
-
-  if (frame_->pin_count_.fetch_sub(1) == 1) {
-    std::scoped_lock latch(*bpm_latch_);
+  bpm_latch_->lock();
+  frame_->pin_count_--;
+  if (frame_->pin_count_ == 0) {
     replacer_->SetEvictable(frame_->frame_id_, true);
   }
+  bpm_latch_->unlock();
   is_valid_ = false;
 }
 
@@ -171,11 +168,10 @@ WritePageGuard::WritePageGuard(page_id_t page_id, std::shared_ptr<FrameHeader> f
                                std::shared_ptr<LRUKReplacer> replacer, std::shared_ptr<std::mutex> bpm_latch)
     : page_id_(page_id), frame_(std::move(frame)), replacer_(std::move(replacer)), bpm_latch_(std::move(bpm_latch)) {
   // UNIMPLEMENTED("TODO(P1): Add implementation.");
-  frame_->rwlatch_.lock();
-  frame_->pin_count_.fetch_add(1);
-
-  frame_->is_dirty_ = true;
   is_valid_ = true;
+  bpm_latch_->unlock();
+  frame_->rwlatch_.lock();
+  frame_->is_dirty_ = true;
 }
 
 /**
@@ -287,12 +283,12 @@ void WritePageGuard::Drop() {
   }
 
   frame_->rwlatch_.unlock();
-
-  if (frame_->pin_count_.fetch_sub(1) == 1) {
-    std::scoped_lock latch(*bpm_latch_);
+  bpm_latch_->lock();
+  frame_->pin_count_--;
+  if (frame_->pin_count_ == 0) {
     replacer_->SetEvictable(frame_->frame_id_, true);
   }
-
+  bpm_latch_->unlock();
   is_valid_ = false;
 }
 
