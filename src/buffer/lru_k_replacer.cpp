@@ -21,55 +21,26 @@ auto LRUKReplacer::Evict() -> std::optional<frame_id_t> {
   // return std::nullopt;
   std::lock_guard<std::mutex> lock(latch_);
 
-  frame_id_t victim_frame = INVALID_FRAME_ID;
-  size_t earliest_timestamp = std::numeric_limits<std::size_t>::max();
+  if (!new_frames_.empty()) {
+    frame_id_t victim = new_frames_.back();
 
-  for (auto &[frame_id, node] : node_store_) {
-    if (!node.is_evictable_) {
-      continue;
-    }
-
-    if (node.history_.size() < k_) {
-      if (node.history_.empty()) {
-        if (0 < earliest_timestamp) {
-          node_store_.erase(frame_id);
-          curr_size_--;
-          return frame_id;
-        }
-      }
-
-      if (node.history_.front() < earliest_timestamp) {
-        earliest_timestamp = node.history_.front();
-        victim_frame = frame_id;
-      }
-    }
-  }
-
-  if (victim_frame != INVALID_FRAME_ID) {
-    node_store_.erase(victim_frame);
+    new_frames_.pop_back();
+    new_frames_iter_.erase(victim);
+    node_store_.erase(victim);
     curr_size_--;
-    return victim_frame;
+
+    return victim;
   }
 
-  size_t max_distance = 0;
-  for (auto &[frame_id, node] : node_store_) {
-    if (!node.is_evictable_) {
-      continue;
-    }
+  if (!cache_frames_.empty()) {
+    frame_id_t victim = cache_frames_.back();
 
-    if (node.history_.size() >= k_) {
-      size_t distance = current_timestamp_ - node.history_.front();
-      if (distance > max_distance) {
-        max_distance = distance;
-        victim_frame = frame_id;
-      }
-    }
-  }
-
-  if (victim_frame != INVALID_FRAME_ID) {
-    node_store_.erase(victim_frame);
+    cache_frames_.pop_back();
+    cache_frames_locator_.erase(victim);
+    node_store_.erase(victim);
     curr_size_--;
-    return victim_frame;
+
+    return victim;
   }
 
   return std::nullopt;
@@ -89,6 +60,23 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
     it->second.history_.push_back(current_timestamp_);
     if (it->second.history_.size() > k_) {
       it->second.history_.pop_front();
+    }
+    bool in_new_frames = (new_frames_iter_.find(frame_id) != new_frames_iter_.end());
+    bool in_cache_frames = (cache_frames_locator_.find(frame_id) != cache_frames_locator_.end());
+
+    if (in_new_frames) {
+      new_frames_.erase(new_frames_iter_[frame_id]);
+      InsertIntoNewFrames(frame_id, it->second);
+
+      if (it->second.history_.size() >= k_) {
+        new_frames_.erase(new_frames_iter_[frame_id]);
+        new_frames_iter_.erase(frame_id);
+        InsertIntoCacheFrames(frame_id, it->second);
+      }
+    } else if (in_cache_frames) {
+      cache_frames_.erase(cache_frames_locator_[frame_id]);
+
+      InsertIntoCacheFrames(frame_id, it->second);
     }
   } else {
     LRUKNode new_node;
@@ -123,8 +111,21 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
 
   if (was_evictable && !set_evictable) {
     curr_size_--;
+
+    if (new_frames_iter_.find(frame_id) != new_frames_iter_.end()) {
+      new_frames_.erase(new_frames_iter_[frame_id]);
+      new_frames_iter_.erase(frame_id);
+    } else if (cache_frames_locator_.find(frame_id) != cache_frames_locator_.end()) {
+      cache_frames_.erase(cache_frames_locator_[frame_id]);
+      cache_frames_locator_.erase(frame_id);
+    }
   } else if (!was_evictable && set_evictable) {
     curr_size_++;
+    if (it->second.history_.size() < k_) {
+      InsertIntoNewFrames(frame_id, it->second);
+    } else {
+      InsertIntoCacheFrames(frame_id, it->second);
+    }
   }
 }
 
@@ -141,6 +142,14 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
   }
 
   node_store_.erase(it);
+  if (new_frames_iter_.find(frame_id) != new_frames_iter_.end()) {
+    new_frames_.erase(new_frames_iter_[frame_id]);
+    new_frames_iter_.erase(frame_id);
+  }
+  if (cache_frames_locator_.find(frame_id) != cache_frames_locator_.end()) {
+    cache_frames_.erase(cache_frames_locator_[frame_id]);
+    cache_frames_locator_.erase(frame_id);
+  }
   curr_size_--;
 }
 
@@ -148,6 +157,50 @@ auto LRUKReplacer::Size() -> size_t {
   // return 0;
   std::lock_guard<std::mutex> lock(latch_);
   return curr_size_;
+}
+
+void LRUKReplacer::InsertIntoCacheFrames(frame_id_t frame_id, const LRUKNode &node) {
+  size_t distance = current_timestamp_ - node.history_.front();
+
+  auto insert_pos = cache_frames_.begin();
+
+  for (auto it = cache_frames_.begin(); it != cache_frames_.end(); ++it) {
+    frame_id_t existing_frame = *it;
+    auto &existing_node = node_store_[existing_frame];
+
+    size_t existing_distance = current_timestamp_ - existing_node.history_.front();
+
+    if (distance >= existing_distance) {
+      insert_pos = std::next(it);
+    } else {
+      break;
+    }
+  }
+
+  auto new_iter = cache_frames_.insert(insert_pos, frame_id);
+  cache_frames_locator_[frame_id] = new_iter;
+}
+
+void LRUKReplacer::InsertIntoNewFrames(frame_id_t frame_id, const LRUKNode &node) {
+  size_t distance = node.history_.front();
+
+  auto insert_pos = new_frames_.begin();
+
+  for (auto it = new_frames_.begin(); it != new_frames_.end(); ++it) {
+    frame_id_t existing_frame = *it;
+    auto &existing_node = node_store_[existing_frame];
+
+    size_t existing_distance = existing_node.history_.front();
+
+    if (distance <= existing_distance) {
+      insert_pos = std::next(it);
+    } else {
+      break;
+    }
+  }
+
+  auto new_iter = new_frames_.insert(insert_pos, frame_id);
+  new_frames_iter_[frame_id] = new_iter;
 }
 
 }  // namespace bustub

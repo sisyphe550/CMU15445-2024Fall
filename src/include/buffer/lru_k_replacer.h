@@ -148,6 +148,9 @@ class LRUKReplacer {
    */
   auto Size() -> size_t;
 
+  void InsertIntoCacheFrames(frame_id_t frame_id, const LRUKNode &node);
+  void InsertIntoNewFrames(frame_id_t frame_id, const LRUKNode &node);
+
  private:
   // TODO(student): implement me! You can replace these member variables as you like.
   // Remove maybe_unused if you start using them.
@@ -157,6 +160,11 @@ class LRUKReplacer {
   [[maybe_unused]] size_t replacer_size_;
   [[maybe_unused]] size_t k_;
   [[maybe_unused]] std::mutex latch_;
+
+  std::list<frame_id_t> new_frames_;
+  std::unordered_map<frame_id_t, std::list<frame_id_t>::iterator> new_frames_iter_;
+  std::list<frame_id_t> cache_frames_;
+  std::unordered_map<frame_id_t, std::list<frame_id_t>::iterator> cache_frames_locator_;
 };
 
 }  // namespace bustub
