@@ -65,6 +65,17 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType;
 
+  auto ValueAt(int index) const -> ValueType;
+  void SetKeyAt(int index, const KeyType &key);
+  void SetValueAt(int index, const ValueType &value);
+
+  /**
+   * @brief 将一个页面的前半部分迁移到另一个页面，并返回中间的键
+   *
+   * @param recipient 接收页面
+   * @param middle_key 中间的键
+   */
+  void MoveHalfTo(BPlusTreeLeafPage *recipient, KeyType &middle_key);
   /**
    * @brief For test only return a string representing all keys in
    * this leaf page formatted as "(key1,key2,key3,...)"

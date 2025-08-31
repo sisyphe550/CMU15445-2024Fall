@@ -80,6 +80,29 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto ValueAt(int index) const -> ValueType;
 
   /**
+   * @param index The index of the value to set. Index must be non-zero.
+   * @param value The new value for value
+   */
+  void SetValueAt(int index, const ValueType &value);
+
+  /**
+  * @brief 在 old_value 对应的孩子指针插入之后插入（middle_key, new_value）
+  *
+  * @param old_value 旧的值
+  * @param middle_key 新的键
+  * @param new_value 新的值
+  */
+  void InsertNodeAfter(ValueType old_value, const KeyType &middle_key, ValueType new_value);
+
+  /**
+   * @brief 将一个页面的前半部分迁移到另一个页面，并返回中间的键
+   *
+   * @param recipient 接收页面
+   * @param middle_key 中间的键
+   */
+  void MoveHalfTo(BPlusTreeInternalPage *recipient, KeyType &middle_key);
+  
+  /**
    * @brief For test only, return a string representing all keys in
    * this internal page, formatted as "(key1,key2,key3,...)"
    *

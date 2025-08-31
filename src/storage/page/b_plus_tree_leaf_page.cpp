@@ -27,8 +27,10 @@ namespace bustub {
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(int max_size) {
-  page_type_ = IndexPageType::LEAF_PAGE;
-  max_size_ = max_size;
+  SetPageType(IndexPageType::LEAF_PAGE);
+  SetMaxSize(max_size);
+  SetSize(0);
+  SetNextPageId(INVALID_PAGE_ID);
 }
 
 /**
@@ -52,10 +54,44 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) {
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const -> KeyType { 
   //return {}; 
-  if (index < 0 || index >= size_) {
+  if (index < 0 || index >= GetSize()) {
     throw Exception(ExceptionType::OUT_OF_RANGE, "Index out of range");
   }
   return key_array_[index];
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::ValueAt(int index) const -> ValueType {
+  if (index < 0 || index >= GetSize()) {
+    throw Exception(ExceptionType::OUT_OF_RANGE, "Index out of range");
+  }
+  return rid_array_[index];
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
+  key_array_[index] = key;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::SetValueAt(int index, const ValueType &value) {
+  rid_array_[index] = value;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient, KeyType &middle_key) {
+  int n = GetSize();
+  int mid = ceil(n / 2);
+  middle_key = KeyAt(mid);
+
+  int j = 0;
+  for (int i = mid; i < n; ++i) {
+    recipient->SetKeyAt(j, KeyAt(i));
+    recipient->SetValueAt(j, ValueAt(i));
+    ++j;
+  }
+  recipient->SetSize(j);
+  SetSize(n - j);
 }
 
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;

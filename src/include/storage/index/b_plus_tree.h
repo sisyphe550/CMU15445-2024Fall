@@ -58,6 +58,8 @@ class Context {
 
 #define BPLUSTREE_TYPE BPlusTree<KeyType, ValueType, KeyComparator>
 
+enum class Operation { INSERT = 0, DELETE };
+
 // Main class providing the API for the Interactive B+ Tree.
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTree {
@@ -126,7 +128,48 @@ class BPlusTree {
    *            (1,2)    (3,4)    (5,6)    (7,10,30) //  The output tree example
    */
   void BatchOpsFromFile(const std::filesystem::path &file_name);
+  
+  /**
+   * @brief 在一个内部节点中，根据给定的 key 查找并返回对应的子页面 ID。
+   * 此函数假定页面已经是 BPlusTreeInternalPage 类型。
+   *
+   * @param key 要查找的 key。
+   * @param page 指向当前内部节点的指针。
+   * @return 应该继续向下搜索的子页面的 page_id。
+   */
+  auto FindLeafMidSearch(const KeyType &key, const InternalPage *page) const -> page_id_t;
 
+  /**
+  * @brief 在只读模式下，找到包含给定 key 的叶子节点。
+  * 此函数不会修改任何页面，因此可以使用 Context 中的 read_set_来存储读取的页面，也可以选择节省开销而不使用。
+  *
+  * @param key 要查找的 key。
+  * @return 包含给定 key 的叶子节点的读取页面保护。
+  */
+  auto FindLeafOnlyRead(const KeyType &key) -> std::optional<ReadPageGuard>;
+
+  /**
+  * @brief 用于在可能会修改节点的情况下，找到包含给定 key 的叶子节点
+  * 当使用此函数时，插入或删除函数可能会发生溢出，因而发生修改需要进行写操作，故需要使用 Context 中的 write_set_ 来存储写入的页面。
+  *
+  * @param key 要查找的 key。
+  * @param ctx 用于存储写入的页面。
+  * @return 包含给定 key 的叶子节点的写入页面保护。
+  */
+  auto FindLeafMaybeWrite(const KeyType &key, Context *ctx, Operation op) -> std::optional<WritePageGuard>;
+
+  /**
+  * @brief 在查找目标节点时，如果路径中某一节点已经满了，则需要进行预分裂
+  *
+  * @param key 要插入的 key。
+  * @param parent 父节点的写入页面保护。
+  * @param child 子节点的写入页面保护。
+  * @param ctx 用于存储写入的页面。
+  * @return 预分裂后的父节点的写入页面保护。
+  */
+  auto PreSplitInternalChild(const KeyType &key, WritePageGuard &&parent, WritePageGuard &&child, Context *ctx) -> WritePageGuard;
+  
+  auto PreRebalanceChildForDelete(const KeyType &search_key, WritePageGuard parent_guard, WritePageGuard child_guard, Context *ctx) -> WritePageGuard;
  private:
   /* Debug Routines for FREE!! */
   void ToGraph(page_id_t page_id, const BPlusTreePage *page, std::ofstream &out);
