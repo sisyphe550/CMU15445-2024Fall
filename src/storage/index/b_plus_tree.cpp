@@ -62,7 +62,7 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
       right = mid - 1;
     }
   }
-  return true;
+  return false;
 }
 
 /*****************************************************************************
@@ -212,7 +212,6 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value) -> bool 
     auto new_root_guard = bpm_->WritePage(new_root_pid);
     auto new_root = new_root_guard.AsMut<InternalPage>();
     new_root->Init(internal_max_size_);
-    new_root->SetSize(0);
     new_root->SetSize(1);
     new_root->SetValueAt(0, left_child_pid);
     new_root->InsertNodeAfter(left_child_pid, middle_key, right_child_pid);
@@ -221,29 +220,10 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value) -> bool 
   }
 
   // 有父，在父中插入
-  KeyType up_key = middle_key;
-  page_id_t up_right = right_child_pid;
   auto parent_guard = std::move(ctx.write_set_.back());
   ctx.write_set_.pop_back();
   auto parent = parent_guard.AsMut<InternalPage>();
-  int sz = parent->GetSize();
-  int l = 1, r = sz - 1, p = 1;
-  while (l <= r) {
-    int m = l + (r - l) / 2;
-    if (comparator_(parent->KeyAt(m), up_key) < 0) {
-      p = m + 1;
-      l = m + 1;
-    } else {
-      r = m - 1;
-    }
-  }
-  for (int i = sz; i > p; --i) {
-    parent->SetKeyAt(i, parent->KeyAt(i - 1));
-    parent->SetValueAt(i, parent->ValueAt(i - 1));
-  }
-  parent->SetKeyAt(p, up_key);
-  parent->SetValueAt(p, up_right);
-  parent->SetSize(sz + 1);
+  parent->InsertNodeAfter(left_child_pid, middle_key, right_child_pid);
   return true;
 }
 
